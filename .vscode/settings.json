@@ -1,0 +1,5 @@
+{
+    "python.pythonPath": "/Users/fial/anaconda3/envs/discord/bin/python",
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": false,
+}
