@@ -30,6 +30,8 @@ class SheetsCache:
     def __init__(self, cache_store_dir, credentials_path, token_path, sheet_id):
         self.cache_store_path_en = cache_store_dir + "/resource_cache_en.dat"
         self.cache_store_path_de = cache_store_dir + "/resource_cache_de.dat"
+        self.cache_store_path_islands = cache_store_dir + "/islands_cache.dat"
+        self.cache_store_path_grids = cache_store_dir + "/grids_cache.dat"
         self.log = logging.getLogger(__name__)
 
         self.sheet_id = sheet_id
@@ -43,8 +45,14 @@ class SheetsCache:
 
         self.resource_map_en = {}
         self.resource_map_de = {}
+        self.all_islands = list()
+        self.all_grids = list()
 
-        if os.path.exists(self.cache_store_path_en) and os.path.exists(self.cache_store_path_de):
+        if (os.path.exists(self.cache_store_path_en) 
+            and os.path.exists(self.cache_store_path_de) 
+            and os.path.exists(self.cache_store_path_islands) 
+            and os.path.exists(self.cache_store_path_grids)):
+
             self.log.info("Loading resource cache from filesytem ...")
 
             with open(self.cache_store_path_en, "rb") as f:
@@ -52,6 +60,12 @@ class SheetsCache:
 
             with open(self.cache_store_path_de, "rb") as f:
                 self.resource_map_de = pickle.load(f)
+
+            with open(self.cache_store_path_islands, "rb") as f:
+                self.all_islands = pickle.load(f)
+
+            with open(self.cache_store_path_grids, "rb") as f:
+                self.all_grids = pickle.load(f)
 
     # -------------------------------------------------------------------------
     # connect to google sheets (login & obtain token)
@@ -93,6 +107,11 @@ class SheetsCache:
         if self.service is None:
             raise RuntimeError("Not connected")
 
+        new_resource_map_en = {}
+        new_resource_map_de = {}
+        new_all_islands = set()
+        new_all_grids = set()
+
         self.log.info("Updating sheets data cache ...")
         
         # query list of sheets in document
@@ -106,11 +125,6 @@ class SheetsCache:
         sheet_names = [sheet['properties']['title'] for sheet in sheet_metadata['sheets']]
 
         self.log.info("Found sheets: {}".format(", ".join(sheet_names)))
-
-        # reset current cache
-
-        new_resource_map_en = {}
-        new_resource_map_de = {}
 
         # loop grids
 
@@ -171,6 +185,9 @@ class SheetsCache:
                                 "cell": chr(ord('A')+col) + str(row_num),
                                 "avail": row[col] }
 
+                        new_all_islands.add(island_name)
+                        new_all_grids.add(grid_name[:2])
+
                         new_resource_map_en[resource_en]["info"].append(info)
                         new_resource_map_de[resource_de]["info"].append(info)
 
@@ -178,6 +195,8 @@ class SheetsCache:
 
         self.resource_map_en = new_resource_map_en
         self.resource_map_de = new_resource_map_de
+        self.all_islands = list(sorted(new_all_islands))
+        self.all_grids = list(sorted(new_all_grids))
 
         # and dump them to the fs for later re-use without re-query
 
@@ -187,6 +206,12 @@ class SheetsCache:
         with open(self.cache_store_path_de, 'wb') as f:
             pickle.dump(self.resource_map_de, f, pickle.HIGHEST_PROTOCOL)
 
+        with open(self.cache_store_path_islands, 'wb') as f:
+            pickle.dump(self.all_islands, f, pickle.HIGHEST_PROTOCOL)
+
+        with open(self.cache_store_path_grids, 'wb') as f:
+            pickle.dump(self.all_grids, f, pickle.HIGHEST_PROTOCOL)
+
         self.log.info("Done reloading cache.")
 
     # -------------------------------------------------------------------------
@@ -194,18 +219,33 @@ class SheetsCache:
 
     def find_resource(self, search_string, only_grids = False):
         resource_infos = []
+        titles = []
+        search_string_lower = search_string.lower()
 
         for key in self.resource_map_en.keys():
-            if key in search_string.lower():
-                resource_infos.append(self.resource_map_en[key])
+            if key in search_string_lower:
+                available_at_all = [x for x in self.resource_map_en[key]["info"] if x["avail"] == 'TRUE']
+                
+                if available_at_all:
+                    resource_infos.append(self.resource_map_en[key])
+
+                titles.append(self.resource_map_en[key]["title"])
 
         for key in self.resource_map_de.keys():
-            if key in search_string.lower():
-                resource_infos.append(self.resource_map_de[key])
+            if key in search_string_lower:
+                available_at_all = [x for x in self.resource_map_de[key]["info"] if x["avail"] == 'FALSE']
+
+                if available_at_all:
+                    resource_infos.append(self.resource_map_de[key])
+
+                titles.append(self.resource_map_de[key]["title"])
 
         # found?
 
         if len(resource_infos) <= 0:
+            if len(titles) > 0:
+                return { "title": "/".join(titles), "not_yet_in_list": True }
+
             return None
 
         # assemble the response string (like : 'A1 (Island1, Island2), A3 (Island1, Island5)')
@@ -306,5 +346,10 @@ class SheetsCache:
     # get_grids
 
     def get_grids(self):
-        return ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'C4', 'D1', 'D2', 'D3', 'D4']
+        return self.all_grids
     
+    # -------------------------------------------------------------------------
+    # get_islands
+
+    def get_islands(self):
+        return self.all_islands;

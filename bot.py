@@ -28,7 +28,7 @@ class DiscordClient(discord.Client):
         self.log = logging.getLogger(__name__)
         self.classifier = classifier
         self.sheets = sheets
-        #self.nlp = spacy.load("de_core_news_md")
+        self.nlp = spacy.load("de_core_news_md")
         self.username = None
 
     #--------------------------------------------------------------------------
@@ -43,67 +43,110 @@ class DiscordClient(discord.Client):
 
     async def on_message(self, message):
         # don't respond to ourselves
+
         if message.author == self.user:
             return
 
-        #doc = self.nlp(message.content)
-        #sentences = [sent.string.strip() for sent in doc.sents]
+        # use spacy / NLP to split a block of text into separate sentences.
+        # then process sentence by sentence
 
-        #for sent in sentences:
-        for sent in [message.content]:
-            res = self.classifier.classify([message.content])
+        doc = self.nlp(message.content)
+        sentences = [sent.string.strip() for sent in doc.sents]
 
-            if res != "chat":
-                await self.process_request(res, sent, message.channel)
+        for sent in sentences:
+        #for sent in [message.content]:
+            # use ML classifier to determine whether or not this sentence is a request for resource location
+
+            res = self.classifier.classify([sent])
+
+            # if so, process it further
+
+            if res and res[0] != "chat":
+                response = self.process_request(res, sent)
+
+                if response is None:
+                    return
+
+                for response_msg in response:
+                    await message.channel.send(response_msg)
 
     #--------------------------------------------------------------------------
     # process_request
 
-    async def process_request(self, type, message, channel):
+    def process_request(self, type, message):
+        requested_grid = None
 
         # actually process the request, depending on what type was classified
+        # currently, only "find_resource" can be a valid query.
 
         if type == "find_resource":
+            msg_lower = message.lower()
+            contains_key = False
 
-            # give locations for one or more resources.
-            # e.g. "Wo gibt es Silber?"
+            # (1) check if indeed the sentence contains a valid resource key.
 
-            self.log.info("Finding resource via [{}]".format(message))
-
-            res = self.sheets.find_resource(message)
-
-            if res is not None:
-                for dict in res:
-                    await channel.send(dict["title"] + " gibt es in " + dict["location"])
-            else:
-                self.log.info("Resource not found")
-
-        elif type == "find_resource_by_grid":
-
-            # give locations for one or more resources in a given grid.
-            # e.g. "Gibt es in C3 Zinn?"
-
-            self.log.info("Finding resource by grid via [{}]".format(message))
-
-            grid_name = None
-
-            for grid in self.sheets.get_grids():
-                if grid.lower() in message.lower():
-                    grid_name = grid
+            for key in self.sheets.get_keys():
+                if key.lower() in msg_lower:
+                    contains_key = True
                     break
 
-            if grid_name:
-                res = self.sheets.find_resource_by_grid(message, grid_name)
+            if not contains_key:
+                return None
+
+            # (2) if a valid island name is contained in the sentence ("Wo auf Teneriffa gibts Holz?")
+            #     skip the request, as we cannot give locations on islands
+
+            for island in self.sheets.get_islands():
+                if island.lower() in msg_lower:
+                    return None
+
+            # (3) if a valid grid name is found in the message ("Wo in C2 gibts Holz?")
+            #     do a "find_resource_by_grid" query, otherwise plain "find_resource" query
+
+            for grid in self.sheets.get_grids():
+                grid_match = rep.search("[^a-zA-Z0-9]" + grid.lower() + "([^a-zA-Z0-9]|$)", msg_lower)
+                
+                if grid_match is not None:
+                    requested_grid = grid
+                    break
+
+            if requested_grid is not None:
+                # (4a) give locations for one or more resources in a given grid.
+                #      e.g. "Gibt es in C3 Zinn?"
+
+                self.log.info("Finding resource by grid via [{}]".format(message))
+
+                res = self.sheets.find_resource_by_grid(message, requested_grid)
 
                 if res is None:
-                    return
+                    self.log.info("Resource not found")
+                    return None
 
+                if "not_yet_in_list" in res:
+                    return [res["title"] + " hat noch niemand in die Resourcenliste eingetragen :/"]
+                
                 if "other_grids" not in res:
-                    await channel.send(res["title"] + " gibt es in " + grid_name + " auf " + ", ".join(res["islands"]))
-                else:
-                    await channel.send(res["title"] + " gibt es in " + grid_name + " nicht. Aber auf " + ", ".join(res["other_grids"]) + ".")
+                    return [res["title"] + " gibt es in " + requested_grid + " auf " + ", ".join(res["islands"])]
+
+                return [res["title"] + " gibt es in " + requested_grid + " nicht. Aber auf " + ", ".join(res["other_grids"]) + "."]
             else:
-                await self.process_request(self, "find_resource", message, channel)
+                # (4b) give locations for one or more resources without grid information.
+                #      e.g. "Wo gibt es Silber?"
+
+                self.log.info("Finding resource via [{}]".format(message))
+
+                res = self.sheets.find_resource(message)
+
+                if res is None:
+                    self.log.info("Resource not found")
+                    return None
+
+                if "not_yet_in_list" in res:
+                    return [res["title"] + " hat noch niemand in die Resourcenliste eingetragen :/"]
+                
+                return [dict["title"] + " gibt es in " + dict["location"] for dict in res]
+        else:
+            self.log.warning("Got request for unknown classification '{}', ignoring!".format(type))
 
 #------------------------------------------------------------------------------
 # class Bot

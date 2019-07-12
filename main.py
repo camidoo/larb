@@ -54,13 +54,13 @@ def main(args):
                                 credentials_path = "./security/credentials.json", 
                                 token_path = "./security/token.pickle", 
                                 sheet_id = sheet_id)
-    
-    if not shts.connect():
-        log.error("Failed to connect to google sheets")
-        return -1
 
-    shts.load_cache()
-    # print(shts.find_resource("Wo finde ich Silber und Kupfer?"))
+    # if not shts.connect():
+    #     log.error("Failed to connect to google sheets")
+    #     return -1
+
+    # shts.load_cache()
+    #print(shts.find_resource("Weiß jemand wo ich Saps finde?"))
     #print(shts.find_resource_by_grid("Gibt es in C3 Zinn?", "C3"))
 
     all_grids = shts.get_grids() 
@@ -71,7 +71,7 @@ def main(args):
                         # ("train_chat.txt", "chat", None), 
                         ("train_resource.txt", "find_resource", { "#resource#": all_keys }),
                         ("train_verification_samples.txt", "chat", None), 
-                        #("train_resource_by_grid.txt", "find_resource_by_grid", { "#grid#": all_grids })
+                        ("train_resource_by_grid.txt", "find_resource", { "#grid#": all_grids })
                         ])
 
     clsf = classifier.ChatClassifier(model_save_dir = "./model", dataset = ds)
