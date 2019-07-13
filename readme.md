@@ -8,7 +8,7 @@ LARB ist eine kleine Python(3) Applikation die als Chatbot für Discord dient. D
 LARB benötigt Python version 3.7.
 
 ```
-$ git clone https://....
+$ git clone https://github.com/patrickjane/larb.git
 
 $ pip install spacy discord scikit-learn google-api-python-client google-auth-httplib2 google-auth-oauthlib
 (...)
