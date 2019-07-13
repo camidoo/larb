@@ -8,31 +8,39 @@
 # Imports
 # -----------------------------------------------------------------------------
 
-from __future__ import print_function
 import pickle
 import os.path
+import re as rep
+import logging
+import time
+import copy
+from threading import Thread, Lock, Event
+
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-
-import logging
-import re as rep
 
 # -----------------------------------------------------------------------------
 # class SheetsCache
 # -----------------------------------------------------------------------------
 
-class SheetsCache:
+class SheetsCache(Thread):
 
     # -------------------------------------------------------------------------
     # ctor
 
-    def __init__(self, cache_store_dir, credentials_path, token_path, sheet_id):
+    def __init__(self, cache_store_dir, credentials_path, token_path, sheet_id, refresh_time):
+        Thread.__init__(self)
+
+        self.log = logging.getLogger(__name__)
+
+        self.stop_event = Event()
+        self.cache_mutex = Lock()
+
         self.cache_store_path_en = cache_store_dir + "/resource_cache_en.dat"
         self.cache_store_path_de = cache_store_dir + "/resource_cache_de.dat"
         self.cache_store_path_islands = cache_store_dir + "/islands_cache.dat"
         self.cache_store_path_grids = cache_store_dir + "/grids_cache.dat"
-        self.log = logging.getLogger(__name__)
 
         self.sheet_id = sheet_id
         self.credentials_path = credentials_path
@@ -40,6 +48,10 @@ class SheetsCache:
 
         self.credentials = None
         self.service = None
+        self.connected = False
+        self.refresh_time = refresh_time
+
+        self.log.info("Reloading cache every {} seconds".format(self.refresh_time))
 
         self.scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
@@ -66,6 +78,32 @@ class SheetsCache:
 
             with open(self.cache_store_path_grids, "rb") as f:
                 self.all_grids = pickle.load(f)
+
+    # -------------------------------------------------------------------------
+    # run
+
+    def run(self):
+        self.connected = self.connect()
+
+        if self.connected:
+            self.log.info("Connected.")
+
+        cur_time = time.time()
+
+        while not self.stop_event.wait(0.2):
+            if time.time() - cur_time >= self.refresh_time:
+                try:
+                    self.reload_cache()
+                except Exception as e:
+                    self.log.error("Failed to reload cache ({})".format(e))
+
+                cur_time = time.time()
+
+    # -------------------------------------------------------------------------
+    # stop
+
+    def stop(self):
+        self.stop_event.set()
 
     # -------------------------------------------------------------------------
     # connect to google sheets (login & obtain token)
@@ -103,16 +141,17 @@ class SheetsCache:
     # -------------------------------------------------------------------------
     # (re-)load cache of resources
 
-    def load_cache(self):
+    def reload_cache(self):
         if self.service is None:
-            raise RuntimeError("Not connected")
+            self.log.error("Not connected, cannot reload cache")
+            return False
 
         new_resource_map_en = {}
         new_resource_map_de = {}
         new_all_islands = set()
         new_all_grids = set()
 
-        self.log.info("Updating sheets data cache ...")
+        self.log.info("Reloading sheets data cache ...")
         
         # query list of sheets in document
         
@@ -193,10 +232,15 @@ class SheetsCache:
 
         # make reloaded lists available
 
-        self.resource_map_en = new_resource_map_en
-        self.resource_map_de = new_resource_map_de
-        self.all_islands = list(sorted(new_all_islands))
-        self.all_grids = list(sorted(new_all_grids))
+        self.cache_mutex.acquire()
+
+        try:
+            self.resource_map_en = new_resource_map_en
+            self.resource_map_de = new_resource_map_de
+            self.all_islands = list(sorted(new_all_islands))
+            self.all_grids = list(sorted(new_all_grids))
+        finally:
+            self.cache_mutex.release()
 
         # and dump them to the fs for later re-use without re-query
 
@@ -213,11 +257,23 @@ class SheetsCache:
             pickle.dump(self.all_grids, f, pickle.HIGHEST_PROTOCOL)
 
         self.log.info("Done reloading cache.")
+        return True
 
     # -------------------------------------------------------------------------
     # find_resource
 
     def find_resource(self, search_string, only_grids = False):
+        self.cache_mutex.acquire()
+        res = None
+
+        try:
+            res = self.find_resource_locked(search_string, only_grids)
+        finally:
+            self.cache_mutex.release()
+
+        return res
+
+    def find_resource_locked(self, search_string, only_grids = False):
         resource_infos = []
         titles = []
         search_string_lower = search_string.lower()
@@ -282,9 +338,20 @@ class SheetsCache:
         return found_strings
 
     # -------------------------------------------------------------------------
-    # find_resource
+    # find_resource_by_grid
 
-    def find_resource_by_grid(self, search_string, grid):
+    def find_resource_by_grid(self, search_string, only_grids = False):
+        self.cache_mutex.acquire()
+        res = None
+
+        try:
+            res = self.find_resource_by_grid_locked(search_string, only_grids)
+        finally:
+            self.cache_mutex.release()
+
+        return res
+
+    def find_resource_by_grid_locked(self, search_string, grid):
         islands = []
         other_grid_islands = []
         title = None
@@ -308,7 +375,7 @@ class SheetsCache:
         # found?
 
         if len(islands) <= 0:
-            other_grids = self.find_resource(search_string, only_grids = True)
+            other_grids = self.find_resource_locked(search_string, only_grids = True)
             
             if not other_grids:
                 return None
@@ -320,36 +387,30 @@ class SheetsCache:
         return { "title": title, "islands": islands }
 
     # -------------------------------------------------------------------------
-    # contains_keys
-
-    def contains_keys(self, message):
-
-        # check if a given text contains one of the cached resource keys
-
-        for key in self.resource_map_en.keys():
-            if key in message:
-                return True
-
-        for key in self.resource_map_de.keys():
-            if key in message:
-                return True
-
-        return False
-
-    # -------------------------------------------------------------------------
     # get_keys
 
     def get_keys(self):
-        return list(sorted(set(list(self.resource_map_en.keys()) + list(self.resource_map_de.keys()))))
+        self.cache_mutex.acquire()
+        res = list(sorted(set(list(self.resource_map_en.keys()) + list(self.resource_map_de.keys()))))
+        self.cache_mutex.release()
+
+        return res
 
     # -------------------------------------------------------------------------
     # get_grids
 
     def get_grids(self):
-        return self.all_grids
+        self.cache_mutex.acquire()
+        res = copy.copy(self.all_grids)
+        self.cache_mutex.release()
+
+        return res
     
     # -------------------------------------------------------------------------
     # get_islands
 
     def get_islands(self):
-        return self.all_islands;
+        self.cache_mutex.acquire()
+        res = copy.copy(self.all_islands)
+        self.cache_mutex.release()
+        return res

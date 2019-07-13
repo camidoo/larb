@@ -28,7 +28,7 @@ class ChatClassifier:
     # -------------------------------------------------------------------------
     # class ChatClassifier
 
-    def __init__(self, model_save_dir, dataset = None):
+    def __init__(self, model_save_dir, dataset = None, do_train = False):
         self.dataset = dataset
         self.model_save_path = model_save_dir + "/chat_classifier.pkl"
         self.model = None
@@ -36,7 +36,7 @@ class ChatClassifier:
         if not os.path.exists(model_save_dir):
             os.makedirs(model_save_dir)
         
-        if not os.path.exists(self.model_save_path):
+        if not os.path.exists(self.model_save_path) or do_train:
             self.train_model()
         else:
             self.load_model()

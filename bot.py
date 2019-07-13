@@ -11,7 +11,6 @@
 import logging
 import discord
 import re as rep
-import spacy
 
 # -----------------------------------------------------------------------------
 # class DiscordClient
@@ -22,13 +21,13 @@ class DiscordClient(discord.Client):
     #--------------------------------------------------------------------------
     # ctor
 
-    def __init__(self, classifier, sheets, *args, **kwargs):
+    def __init__(self, nlp, classifier, sheets, *args, **kwargs):
         discord.Client.__init__(self, *args, **kwargs)
 
         self.log = logging.getLogger(__name__)
         self.classifier = classifier
         self.sheets = sheets
-        self.nlp = spacy.load("de_core_news_md")
+        self.nlp = nlp
         self.username = None
 
     #--------------------------------------------------------------------------
@@ -54,21 +53,23 @@ class DiscordClient(discord.Client):
         sentences = [sent.string.strip() for sent in doc.sents]
 
         for sent in sentences:
-        #for sent in [message.content]:
             # use ML classifier to determine whether or not this sentence is a request for resource location
 
-            res = self.classifier.classify([sent])
+            try:
+                res = self.classifier.classify([sent])
 
-            # if so, process it further
+                # if so, process it further
 
-            if res and res[0] != "chat":
-                response = self.process_request(res, sent)
+                if res and res[0] != "chat":
+                    response = self.process_request(res, sent)
 
-                if response is None:
-                    return
+                    if response is None:
+                        return
 
-                for response_msg in response:
-                    await message.channel.send(response_msg)
+                    for response_msg in response:
+                        await message.channel.send(response_msg)
+            except Exception as e:
+                self.log.error("Failed to process chat ({})".format(e))
 
     #--------------------------------------------------------------------------
     # process_request
@@ -114,12 +115,12 @@ class DiscordClient(discord.Client):
                 # (4a) give locations for one or more resources in a given grid.
                 #      e.g. "Gibt es in C3 Zinn?"
 
-                self.log.info("Finding resource by grid via [{}]".format(message))
+                self.log.debug("Finding resource by grid via [{}]".format(message))
 
                 res = self.sheets.find_resource_by_grid(message, requested_grid)
 
                 if res is None:
-                    self.log.info("Resource not found")
+                    self.log.debug("Resource not found")
                     return None
 
                 if "not_yet_in_list" in res:
@@ -133,12 +134,12 @@ class DiscordClient(discord.Client):
                 # (4b) give locations for one or more resources without grid information.
                 #      e.g. "Wo gibt es Silber?"
 
-                self.log.info("Finding resource via [{}]".format(message))
+                self.log.debug("Finding resource via [{}]".format(message))
 
                 res = self.sheets.find_resource(message)
 
                 if res is None:
-                    self.log.info("Resource not found")
+                    self.log.debug("Resource not found")
                     return None
 
                 if "not_yet_in_list" in res:
@@ -157,11 +158,11 @@ class Bot:
     #--------------------------------------------------------------------------
     # ctor
 
-    def __init__(self, token_file_name, classifier, sheets):
+    def __init__(self, token_file_name, nlp, classifier, sheets):
         self.token = ""
         self.client = None
         self.log = logging.getLogger(__name__)
-        self.client = DiscordClient(classifier, sheets, status = 'idle')
+        self.client = DiscordClient(nlp, classifier, sheets, status = 'idle')
 
         try:
             with open(token_file_name) as f:
@@ -172,9 +173,15 @@ class Bot:
     #--------------------------------------------------------------------------
     # connect
 
-    def connect(self):
+    async def connect(self):
         if not self.token:
             self.log.error('No token available, cannot connect!')
         else:
-            self.log.info('Connecting to discord using {} ...'.format(discord.__version__))
-            self.client.run(self.token)
+            self.log.info('Connecting to discord using discord.py v{} ...'.format(discord.__version__))
+            await self.client.start(self.token)
+
+    #--------------------------------------------------------------------------
+    # disconnect
+
+    async def disconnect(self):
+        await self.client.logout()

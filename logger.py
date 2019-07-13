@@ -9,8 +9,11 @@ import logging
 
 class Logger:
     def static_init(file_name, level = logging.INFO):
-        logging.getLogger('googleapicliet.discovery_cache').setLevel(logging.ERROR)
-        logging.getLogger('googleapicliet.discovery').setLevel(logging.ERROR)
+        logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
+        logging.getLogger('googleapiclient.discovery').setLevel(logging.ERROR)
+        
+        logging.getLogger('discord.gateway').setLevel(logging.WARNING)
+        logging.getLogger('discord.client').setLevel(logging.ERROR)
 
         if file_name == None:
             logging.basicConfig(level = level, 
