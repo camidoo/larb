@@ -67,7 +67,7 @@ async def main(args):
         discord_token = args["discord-token"]
     except Exception as e:
         log.error("Missing mandatory argument: {}".format(e))
-        return
+        return help()
 
     refresh_time = 600
 
