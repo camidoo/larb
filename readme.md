@@ -67,7 +67,7 @@ $ larb --console --sheet-id=1Tu-kMkRgixJ2NInHSds0rJAHxYqD7hV84u8UbzQuZkI --cache
 
 ```
 
-#Copyright Hinweise
+# Copyright Hinweise
 LARB verwendet die folgenden Libraries:
 
 - `discord.py` - https://github.com/Rapptz/discord.py
