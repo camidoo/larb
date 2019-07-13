@@ -66,3 +66,11 @@ $ larb --console --sheet-id=1Tu-kMkRgixJ2NInHSds0rJAHxYqD7hV84u8UbzQuZkI --cache
 ^C2019-07-13 12:29:52,099:main:INFO: Shutting down
 
 ```
+
+#Copyright Hinweise
+LARB verwendet die folgenden Libraries:
+
+- `discord.py` - https://github.com/Rapptz/discord.py
+- Google Sheets - https://developers.google.com/sheets/api/quickstart/python
+- `spacy` - https://spacy.io/
+- `scikit-learn` - https://scikit-learn.org
