@@ -15,7 +15,7 @@ $ pip install spacy discord scikit-learn google-api-python-client google-auth-ht
 $ python -m spacy download de_core_news_sm
 (...)
 You can now load the model via spacy.load('de_core_news_sm')
-$ ./larb/larb.py --help
+$ ./larb/larb --help
 LARB - little atlas resource bot version 1.0.0
 
 Usage:
