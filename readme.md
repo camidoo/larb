@@ -3,6 +3,8 @@
 ## Übersicht
 LARB ist eine kleine Python(3) Applikation die als Chatbot für Discord dient. Der Hauptzweck ist die Abfrage einer Ressourcenliste aus Google Sheets über Chatnachrichten. Für die Interpretation der Chatnachrichten werden keine Commands verwendet, sondern NLP und Machine Learning. Der Bot ist demnach in der Lage, Fragen nach Ressourcen aus den Chatnachrichten zu "erkennen".
 
+Der Bot ist kompatibel der Resourcenliste der Radioactive Atlas Community - http://radioactiveatlas.com.
+
 ## Installation
 **Hinweis**    
 LARB benötigt Python version 3.7.
