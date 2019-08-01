@@ -12,7 +12,7 @@ LARB benötigt Python version 3.7.
 ```
 $ git clone https://github.com/patrickjane/larb.git
 
-$ pip install spacy discord scikit-learn google-api-python-client google-auth-httplib2 google-auth-oauthlib
+$ pip install spacy discord scikit-learn google-api-python-client google-auth-httplib2 google-auth-oauthlib keras tensorflow pandas
 (...)
 $ python -m spacy download de_core_news_sm
 (...)
@@ -51,7 +51,7 @@ Beispiel:
 
 ```
 $ larb --console --sheet-id=1Tu-kMkRgixJ2NInHSds0rJAHxYqD7hV84u8UbzQuZkI --cache-dir=./cache --sheets-token-path=./security/token.pickle --sheets-credentials=./security/credentials.json --discord-token=./security/token.txt --refresh-time=15
-2019-07-13 12:29:29,423:main:INFO: Starting LARB v1.0.0
+2019-07-13 12:29:29,423:main:INFO: Starting LARB v1.1.0
 2019-07-13 12:29:29,423:main:INFO: Loading NLP module 'de_core_news_sm' ...
 2019-07-13 12:29:29,799:main:INFO: Done.
 2019-07-13 12:29:29,799:sheets:INFO: Reloading cache every 15 seconds
@@ -68,6 +68,10 @@ $ larb --console --sheet-id=1Tu-kMkRgixJ2NInHSds0rJAHxYqD7hV84u8UbzQuZkI --cache
 ^C2019-07-13 12:29:52,099:main:INFO: Shutting down
 
 ```
+
+Und so sieht das ganze in Discord aus:
+
+![Screenshot](screenshot.png)
 
 # Copyright Hinweise
 LARB verwendet die folgenden Libraries:
