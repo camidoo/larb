@@ -15,16 +15,28 @@ Zur Klassifikation wird eine Kombination aus `SGDClassifier` und einem Convoluti
 
 ## Installation
 **Hinweis**    
-LARB benötigt Python version 3.7.
+LARB benötigt Python version 3.7. Die Verwendung eines Python-VirtualEnvironment wird empfohlen!
+
+1) Installation der benötigten Python-Pakete:
 
 ```
-$ git clone https://github.com/patrickjane/larb.git
-
-$ pip install spacy discord scikit-learn google-api-python-client google-auth-httplib2 google-auth-oauthlib keras tensorflow pandas
+$ pip install spacy discord scikit-learn google-api-python-client google-auth-httplib2 google-auth-oauthlib keras tensorflow pandas matplotlib
 (...)
+```
+2) Laden des 'de_core_news_sm' Pakets für deutsche Sprachfeatures:
+
+```
 $ python -m spacy download de_core_news_sm
 (...)
 You can now load the model via spacy.load('de_core_news_sm')
+```
+
+3) LARB Git-Repository klonen:
+
+```
+$ git clone https://github.com/patrickjane/larb.git
+(...)
+
 $ ./larb/larb --help
 LARB - little atlas resource bot version 1.1.0
 
