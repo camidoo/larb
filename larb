@@ -11,9 +11,7 @@
 
 import bot
 import logger
-import classifier
 import sheets
-import dataset
 
 import asyncio
 import logging
@@ -22,7 +20,7 @@ import signal
 
 import spacy
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 #------------------------------------------------------------------------------
 # globals
@@ -94,9 +92,13 @@ async def main(args):
 
     shts.start()
 
+    import classifier
+    import dataset
+
     # initialize classifier
 
-    clsf = classifier.ChatClassifier(model_save_dir = "./model", dataset = dataset.Dataset(data_dir = "", sources = []))
+    clsf = classifier.ChatClassifier(model_save_dir = "./model", 
+                                    dataset = dataset.Dataset(cache_dir = "./model"))
 
     # finally create the discord bot
 
@@ -105,16 +107,63 @@ async def main(args):
     await discbot.connect()  # blocks
 
 #------------------------------------------------------------------------------
+# generate_data
+#------------------------------------------------------------------------------
+
+def generate_data(args):
+    try:
+        sheet_id = args["sheet-id"]
+        cache_store_dir = args["cache-dir"]
+        sheets_token_path = args["sheets-token-path"]
+        sheets_credentials = args["sheets-credentials"]
+        discord_token = args["discord-token"]
+    except Exception as e:
+        log.error("Missing mandatory argument: {}".format(e))
+        return help()
+    
+    refresh_time = 900
+
+    shts = sheets.SheetsCache(cache_store_dir, sheets_credentials, 
+                              sheets_token_path, sheet_id, refresh_time = refresh_time)
+
+    # initialize dataset
+
+    dataset.Dataset.generate_data(sheets = shts, data_dir = "./data", sources = [
+                        ("train_chat_big2.txt", "chat"), 
+                        ("train_chat_generated.txt", "chat"), 
+                        ("train_resource2.txt", "find_resource"),
+                        ("train_resource_by_grid2.txt", "find_resource"),
+                        ("train_resource_real.txt", "find_resource")
+                        ], resource_keys = shts.get_keys(), grid_keys = shts.get_grids())
+
+#------------------------------------------------------------------------------
 # test
 #------------------------------------------------------------------------------
 
-def test():
-    print(clsf.classify(["Wo gibts auf D4 silber?", "Wo kann ich Affen finden?", "Gibt es irgendwo Holz?", "Auf welcher Insel gibt es Silber?"]))
+def test(args, model_type, variant):
+    try:
+        sheet_id = args["sheet-id"]
+        cache_store_dir = args["cache-dir"]
+        sheets_token_path = args["sheets-token-path"]
+        sheets_credentials = args["sheets-credentials"]
+        discord_token = args["discord-token"]
+    except Exception as e:
+        log.error("Missing mandatory argument: {}".format(e))
+        return help()
+    
+    refresh_time = 600
 
-    print(shts.find_resource("Weiß jemand wo ich Saps finde?"))
-    print(shts.find_resource_by_grid("Gibt es in C3 Zinn?", "C3"))
+    shts = sheets.SheetsCache(cache_store_dir, sheets_credentials, 
+                              sheets_token_path, sheet_id, refresh_time = refresh_time)
 
-    with open("./data/big_chat_cleaned.txt") as my_file:
+    ds = dataset.Dataset(cache_dir = "./model", 
+                    csv_file = "./data/chat_dataset.csv",
+                    use_tokenizer = True)
+
+    clsf = classifier.ChatClassifier(model_save_dir = "./model", model_type= model_type, variant= variant, dataset = ds)
+    clsf2 = classifier.ChatClassifier(model_save_dir = "./model", model_type= "SGD", variant= variant, dataset = ds)
+
+    with open("./data/test_chat.txt") as my_file:
         for line in my_file:
             message = line[:-1]
 
@@ -143,7 +192,7 @@ def test():
 # test
 #------------------------------------------------------------------------------
 
-def train():
+def train(args, model_type, variant):
     try:
         sheet_id = args["sheet-id"]
         cache_store_dir = args["cache-dir"]
@@ -153,21 +202,11 @@ def train():
         log.error("Missing mandatory argument: {}".format(e))
         return
 
-    shts = sheets.SheetsCache(cache_store_dir, sheets_credentials, 
-                              sheets_token_path, sheet_id, refresh_time = 60)
+    ds = dataset.Dataset(cache_dir = "./model", 
+                        csv_file = "./data/chat_dataset.csv",
+                        use_tokenizer = True)
 
-    shts.connect()
-    shts.reload_cache()
-
-    ds = dataset.Dataset(data_dir = "./data", 
-                        sources = [
-                        # ("train_chat.txt", "chat", None), 
-                        ("train_resource.txt", "find_resource", { "#resource#": shts.get_keys() }),
-                        ("train_verification_samples.txt", "chat", None), 
-                        ("train_resource_by_grid.txt", "find_resource", { "#grid#": shts.get_grids()  })
-                        ])
-
-    clsf = classifier.ChatClassifier(model_save_dir = "./model", dataset = ds, do_train = True)
+    clsf = classifier.ChatClassifier(model_save_dir = "./model", model_type= model_type, variant= variant, dataset = ds, do_train = True)
 
 #------------------------------------------------------------------------------
 # test
@@ -184,10 +223,8 @@ def help():
     print("\n   --discord-token=[FILE]        Location of a file containing the discord bot access token.")
     print("\n   --cache-dir=[PATH]            Storage path for cached resources.")
     print("   --refresh-time=[TIME]         Interval in seconds after which the resource cache shall be reloaded from google sheets. Default is 600.")
-        
 
-    print("\n   --train                    (Re-)train the ML model for the chat classifier.")
-    print("   --help                     Show this help and exit")
+    print("\n   --help                     Show this help and exit")
     print("   --console                  Log to stdout instead of a dedicated logfile")
 
     print("\nAll options except train/help/console/refresh-time are MANDATORY.")
@@ -210,7 +247,7 @@ if __name__ == '__main__':
     args = parseArgs()
 
     if 'train' in args:
-        train()
+        train(args)
     elif 'help' in args:
         help()
     else:

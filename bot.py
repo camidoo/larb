@@ -61,7 +61,7 @@ class DiscordClient(discord.Client):
                 # if so, process it further
 
                 if res and res[0] != "chat":
-                    response = self.process_request(res, sent)
+                    response = self.process_request(res[0], sent)
 
                     if response is None:
                         return

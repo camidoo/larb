@@ -330,7 +330,7 @@ class SheetsCache(Thread):
             found_strings.append({ "title": title, "location": location })
             
             if not only_grids:
-                self.log.info("Found resource '{}' in {}".format(title, location))
+                self.log.debug("Found resource '{}' in {}".format(title, location))
 
         if only_grids:
             return found_grid_names
