@@ -5,6 +5,14 @@ LARB ist eine kleine Python(3) Applikation die als Chatbot für Discord dient. D
 
 Der Bot ist kompatibel zur Resourcenliste der Radioactive Atlas Community - http://radioactiveatlas.com.
 
+
+## Technik
+
+Der Bot verwendet trainierte Machine Learning Modelle um Chatnachrichten zu analysieren. Kommt das ML-Modell zu dem Schluss, dass es sich bei der Nachricht um eine Frage nach Ressourcen handelt ("Wo finde ich Silber?"), wird die Ressourcenliste durchsucht, die Orte der betreffenden Ressource ermittelt und anschließend eine Chatnachricht mit dem Ergebnis abgeschickt.
+Sofern das ML-Modell keine Frage nach Ressourcen erkennt ("Also in B3 gibt es Silber auf Formentera"), wird die Nachricht einfach ignoriert.
+
+Zur Klassifikation wird eine Kombination aus `SGDClassifier` und einem Convolutional Neural Network verwendet.
+
 ## Installation
 **Hinweis**    
 LARB benötigt Python version 3.7.
@@ -18,7 +26,7 @@ $ python -m spacy download de_core_news_sm
 (...)
 You can now load the model via spacy.load('de_core_news_sm')
 $ ./larb/larb --help
-LARB - little atlas resource bot version 1.0.0
+LARB - little atlas resource bot version 1.1.0
 
 Usage:
    $ larb [OPTIONS]
@@ -29,8 +37,8 @@ Options:
    --sheets-credentials=[FILE]   Location of the google sheets credentials file.
 
    --discord-token=[FILE]        Location of a file containing the discord bot access token.
-
-   --train                    (Re-)train the ML model for the chat classifier.
+   --refresh-time=[TIME]         Interval in seconds after which the resource cache shall be reloaded from google sheets. Default is 600.
+   
    --help                     Show this help and exit
    --console                  Log to stdout instead of a dedicated logfile
 
@@ -80,3 +88,4 @@ LARB verwendet die folgenden Libraries:
 - Google Sheets - https://developers.google.com/sheets/api/quickstart/python
 - `spacy` - https://spacy.io/
 - `scikit-learn` - https://scikit-learn.org
+- tensorflow / keras - https://keras.io/
